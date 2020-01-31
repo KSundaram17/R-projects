@@ -1,0 +1,513 @@
+---
+title: "Baby Names of Ireland 1964-2018"
+author: "Kumari Sundaram Shailbala"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    
+    fig_width: 6 
+    fig_height: 4
+    code_folding: hide
+    code_download : true
+---
+<style type="text/css">
+
+body, td {
+   font-size: 12px;
+}
+code.r{
+  font-size: 10px;
+}
+pre {
+  font-size: 10px
+}
+</style>
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.width=6, fig.height=4)
+```
+
+# {.tabset .tabset-fade .tabset-pills}
+
+## __Abstract__
+
+**OBJECTIVE** :  
+
+>The purpose of this project is to show how the various tools that we have covered in modules ST661,ST463/ST663 which have been used to read, manipulate, and summarize data so that you can model and develop statistical evidence for relevant real-world questions.
+
+  
+**OVERVIEW** : 
+
+>The report provides information obtained through multiple analysis, regarding Baby names in Ireland 1964-2018. This report will pay particular attention to the trends in baby names and highlight common names between boys and girls while offering some explanation for observed changes.  The report will comment on the trends of the boy’s name and girl’s name over the years and which name are unique among all the names of the babies.Post the data cleaning, univariate and multi-variate exploration of the data helped us answer some of the above questions. A variety of packages were used for this exercise, which are explained in the later sections. Each analysis has been explained along with its codes.
+
+  
+```{r}
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(stringr))
+suppressMessages(library(plotly))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggpubr))
+suppressMessages(library(tibble))
+
+```
+
+
+## __Data Exploration__ 
+
+### {.tabset .tabset-fade}
+
+#### __Data Manipulation__ 
+
+_Data Exploration and Testing has been done by JASON MARK FELL and KUMARI SUNDARAM SHAILBALA_
+
+>This dataset was constructed from the Central Statistics Office website, https://www.cso.ie/en/interactivezone/visualisationtools/babynamesofireland/. We specifically obtained data from the period from 1964 - 2018. The raw dataset was developed, using the methods outlined below, and was further developed by combining more variables, namely, Year and Gender, to the dataset to make it more complete. Overall, the data is high-quality and any tweaks involved minor adjustments. We decided to use rstudioserver to import the datasets instead of the conventional rstudio, which has it's drawbacks. Here is a briefing on the variables and the structure that contains them.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+
+girls <- as_tibble("Top Girls Names 2018.csv")
+girls_total <- read_csv("Top Girls Names 2018.csv")
+
+#Adding Gender Column to the data 
+girls_total$Gender <- "Girl"
+
+boys_total <- read_csv("TopBoysNames2018.csv")
+
+#adding Gender Column to the data
+boys_total$Gender <- "Boy"
+
+#Merging Boys and Girls Data together
+
+total <- rbind(boys_total,girls_total)
+
+#Changing the column name `Number of Births` as it contains special character (``) which makes it difficult to read
+total <- total %>% 
+  rename(
+    Birth = `Number of Births`
+  )
+
+
+# Writing the csv as delimited text file (TSV)to Local
+write.table(total,file = "total_boys_girls.txt",
+            sep = "\t",row.names = TRUE,col.names = NA)
+
+#Reading the Text file from Local
+total_boys_girls_final <- read.table("total_boys_girls.txt", 
+                                     header= TRUE, sep = "\t", fileEncoding = "latin1")
+
+```
+
+
+>One of the benfits of retrieving the dataset from the aforementioned url was the choice of downloading options. Firstly, choosing from the list of file formats to download was not easy. The 'Print', 'PDF' and 'Copy' approaches were easy to save as .txt files and read them into rstudioserver using the 'import dataset' from the 'File' tab on the menu system. It became apparent that the .csv files would not interpret 'Irish' language names, both boys and girls. Even after some R coding manipulations the correct encoding did not present itself, especially after changing the 'locale' settings. ASCII is very good at representing English characters and Latin1 is used for interpreting Western European Languages. UTF-8 can encode any character in the world. Fortunately, we did not choose to use .csv files. Eventually we obtained the excel files for all the years, both boys and girls and used 'import dataset' from excel'in rstudioserver, giving us complete and proper names in the 'Name' column without any unusual or special characters. 
+
+
+```{r}
+
+excel.list.boys<-readRDS(file="excel.list.boys.rds")
+glimpse(excel.list.boys)
+
+```
+
+
+```{r}
+excel.list.girls<-readRDS(file="excel.list.girls.rds")
+glimpse(excel.list.girls)
+
+```
+
+
+>The categorical variables are: Name, Rank, Year and Gender. The numerical variable is: Number of Births which is also discrete. The categorical variables as perceived at first glance, in order as above: character, integer, 
+date and character.These variables will be re-defined, if possible, to correspond to it's datatype. The variable as seen in the tibble are: 'Name' variable(column) is character, 'Rank' column is double, change to factor,'`Number of Births`' is double, change to integer, 'Year' is double,change to integer, 'Gender' is character,change to factor, one column where each value has a choice of two. Even though it is a date. The required format suggests we need yyyy-mm-dd to change the column's datatype to date. It is sufficient as it is.
+
+```{r}
+final.list.girls<-readRDS(file="final.list.girls.rds")
+glimpse(final.list.girls)
+```
+
+```{r}
+final.list.boys<-readRDS(file="final.list.boys.rds")
+glimpse(final.list.boys)
+```
+
+```{r}
+final.list<-readRDS(file="final.list.rds")
+final.list$Rank<-as.factor(final.list$Rank)
+final.list$`Number of Births`<-as.integer(final.list$`Number of Births`)
+final.list$Year<-as.integer(final.list$Year)
+glimpse(final.list)
+
+```
+
+>Here is the summary of the numerical variable. Mean of 47.75 would indicate a large dispersion, for both.
+
+```{r}
+summary(final.list$`Number of Births`)
+```
+
+>There is alot of ouliers in this dataset. There is a caution attached to this dataset.
+
+```{r}
+length(boxplot.stats(final.list$`Number of Births`)$out)
+
+```
+
+
+#### __Exploratory Data Analysis__
+
+
+```{r}
+altered.final.list<-readRDS(file="altered.final.list.rds")
+
+```
+
+```{r message=FALSE, warning=FALSE}
+RankName<-altered.final.list$RankName
+NOB.Desc<-altered.final.list$NOB.Desc
+p<-ggplot(data=altered.final.list, mapping=aes(x=RankName, y=NOB.Desc)) + geom_bar(stat="identity")
+p + scale_x_continuous(limits=c(0,30000)) + scale_y_continuous(limits=c(0,1500))
+
+```
+
+>Once again, caution is required, many rows were omitted.
+
+```{r}
+par(mfrow=c(1,2))
+barplot(table(final.list$Gender))
+barplot(final.list$`Number of Births`, final.list$Year, main="Decreasing NumOfBirths", xlab="2018 - 1964", ylab="Number of Births")
+
+```
+
+>The left plot informs us that the number of births for girls is greater than the number of births for boys, over 50 years.
+From the right plot, using the data from final.list, with 'Year' descending, that the '`Number of Births`'has decreased.
+
+```{r}
+final.list.boys<-readRDS(file="final.list.boys.rds")
+final.list.girls<-readRDS(file="final.list.girls.rds")
+final.list<-readRDS(file="final.list.rds")
+var(final.list.boys$`Number of Births`)
+```
+
+>Looking at the graphs above. The variance of boys number of births is 25.999.32 which seems very significant. Boys birth rate, overall, has decreased. Many of the same name would explain the variance, the density of the top 15 names would increase the variance compared to smaller ranked names. The mean is quite small compared to the actual number of births per year which is cause for alarm. 
+
+```{r}
+var(final.list.girls$`Number of Births`)
+```
+
+
+>Looking at the graphs above. The variance of girls number of births is 9373.578 which seems reasonably significant. Girls birth rate has decreased overall, not as much as boys, but the increases/decreases are not as severe. The mean is quite small compared to the actual number of births per year which is cause for alarm.The spread for boys names is less than girls.
+
+```{r}
+var(final.list$`Number of Births`) 
+```
+
+>When both are combined the variance is as expected nearly half the sum of the other two, 16317.69. Overall, there is a large decrease in the number of births in 2018 than 1964.
+
+>Heatmap of two categorical variables.
+
+```{r}
+final.list %>%
+   count(Rank, Year) %>%
+   ggplot(mapping = aes(x = Year, y = Rank)) +
+   geom_tile(mapping = aes(fill = n))
+```
+
+#### __Testing__
+
+```{r}
+#fitting the linear model for Rank vs Year
+fit <- lm(Rank~Year, data = total_boys_girls_final)
+
+par(mfrow=c(2,2))
+plot(fit)
+
+```
+
+__Hypothesis Testing and checking for normality__:
+
+>We perform t-test for rank of the baby names to check if the mean of the sample from a normal distribution has a specific value i.e. if all the means are same. We consider null hypothesis as all the means of the sample being the same and alternate hypothesis as not all means are equal. As in t-test, it is assumed that the data is normally distributed, we confirmed it with the density- curve which tells us if the graph is bell-shaped or not. Bell-shaped curve represents data is normally distributed.  Here, we can safely assume Normal Distribution. Here, we could see that p–value from t-test is than 0.05 which is 2.2*10^(-16) so we reject the null hypothesis and accept the alternate hypothesis which means that sample mean is not equal to the theoretical mean. As per Q-Q plot, we could see that the curve shows the hints of normality. There are few outliers in the plot and it might need transformations to attain ideal Normality. 
+
+```{r}
+
+#p-value from t-test is less than 0.05 which is 2.2*10^(-16) so we reject the null hypothesis and accept the alternate hypothesis which means that sample mean is not equal to the theoretical mean.
+t.test(total_boys_girls_final$Rank)
+
+```
+
+>Density plot to check if the distribution is bell shaped.
+
+```{r}
+update.packages("htmltools")
+
+plot0 <- ggdensity(total_boys_girls_final$Rank, 
+          main = "Density plot of Rank",
+          xlab = "Rank")
+
+plot01 <- ggqqplot(total_boys_girls_final$Rank)
+subplot(plot0, plot01,nrows = 1, margin = 0.10,titleY = TRUE,titleX = TRUE)
+```
+
+>Plotting Q-Q plot to check Normality
+
+```{r}
+plot01 <- ggqqplot(total_boys_girls_final$Rank)
+subplot(plot0, plot01,nrows = 1, margin = 0.10,titleY = TRUE,titleX = TRUE)
+```
+
+
+## __Data Visualization__
+
+##### {.tabset .tabset-fade}
+
+###### __Analysis of Girl & Boy Names__
+
+_Data Visualization , analysis and report has been done by MAITHRI AMARNATH VIJAYAKUMARI and RAGHAV CHADHA_
+
+__What are the top baby girl names over the time period of time?__
+
+>Identifying the top 15 baby girl names according to the rank and number of births.Hence, grouping the data and selecting the top 15 columns. 
+
+```{r}
+names <-  read.delim("total_boys_girls.txt", 
+                     header= TRUE, sep = "\t", fileEncoding = "latin1")
+babynames <- names[-1]
+
+girl_babynames_R <- babynames %>%
+                  filter(Rank == 1 | Rank == 2 | Rank == 3 | Rank == 4 | Rank == 5) %>%
+                  filter(Gender == "Girl") %>% 
+                  group_by(Name) %>% 
+                  summarise(girlstotal_Rank = n()) %>% 
+                  arrange(desc(girlstotal_Rank))
+
+top15girlbaby_rank <- girl_babynames_R[1:15, ]
+
+plot1 <- ggplot(top15girlbaby_rank, aes(x= Name, y= girlstotal_Rank)) +
+         geom_segment( aes(x=reorder(Name,girlstotal_Rank), xend=Name, y=0, yend= girlstotal_Rank), color="#f46093") +
+        geom_point( color="#ff008f", size=4, alpha=0.6) +
+        xlab("\nBaby Girl Names \n") +
+        ylab("\nCount Of Girl Baby Rank") +
+        theme_light() +
+        coord_flip() +
+        theme(
+         panel.grid.major.y = element_blank(),
+         panel.border = element_blank(),
+         axis.ticks.y = element_blank()
+        )+
+        theme_bw()
+
+
+girl_babynames_B <- babynames %>%
+                    filter(Gender == "Girl") %>%
+                    group_by(Name) %>% 
+                    summarise(girlstotal_Birth = sum(Birth)) %>%
+                    arrange(desc(girlstotal_Birth))
+
+top15girlbaby_birth <- girl_babynames_B[1:15, ]
+
+plot2 <- ggplot(top15girlbaby_birth, aes(x= Name, y= girlstotal_Birth)) +
+         geom_segment(aes(x=reorder(Name,girlstotal_Birth), xend=Name, y=0, yend= girlstotal_Birth), color="#f46093") +
+         geom_point( color="#ff008f", size=4, alpha=0.6) +
+         xlab("\nBaby Girl Names \n") +
+         ylab("\nCount Of Girl Baby Births") +
+         theme_light() +
+         coord_flip() +
+         theme(
+          panel.grid.major.y = element_blank(),
+          panel.border = element_blank(),
+          axis.ticks.y = element_blank()
+         )+
+        theme_bw()
+
+
+subplot(plot1, plot2,nrows = 1, margin = 0.10,titleY = TRUE,titleX = TRUE)
+
+```
+
+
+__Trend of Mary,Emma & Sarah over Years by their rank and births__
+
+>We have used top names to Mary & Sarah (respective to number of births), Emma and Sarah (respective to number of ranks) over the years.
+We could see the trend of Mary and Emma is decreasing while sarah is nearly constant over years. Could we conclude the most popular names in the early years are not so popular as of now ?
+
+```{r message=FALSE, warning=FALSE}
+
+girlbabynames_M_S <- babynames %>%
+                     filter(Name == "Mary" | Name == "Sarah") %>%
+                     group_by(Name, Year) %>% 
+                     summarise(girlstotal_Birth_M_S = sum(Birth)) %>%
+                     arrange(desc(girlstotal_Birth_M_S))
+
+girlbabynames_E_S <- babynames %>%
+                          filter(Name == "Emma" | Name == "Sarah") %>%
+                          arrange(Rank) 
+
+plot3 <- plot_ly(girlbabynames_M_S, x = ~Year, y = ~girlstotal_Birth_M_S, mode = 'markers', color = ~Name) %>% 
+          layout(yaxis = list(title = "Count Of Births")) %>% add_trace(colors = "Spectral", type = "scatter")
+
+plot4 <- plot_ly(girlbabynames_E_S, x = ~Year, y = ~Rank, color = ~Name, mode = 'markers') %>% 
+          layout(yaxis = list(title = "Name Ranking by Year")) %>% add_trace(colors = "PuOr", type = "scatter")
+
+subplot(plot3, plot4, margin = 0.1, nrows = 2, titleY = TRUE)
+```
+
+
+__What are the top baby boy names over the time period of time?__
+
+>Identifying the top 15 baby girl names according to the rank and number of births.Hence, grouping the data and selecting the top 15 columns. 
+
+```{r}
+boy_babynames_R <- babynames %>%
+                   filter(Rank == 1 | Rank == 2 | Rank == 3 | Rank == 4 | Rank == 5) %>%
+                   filter(Gender == "Boy") %>% 
+                   group_by(Name) %>% 
+                   summarise(boystotal_Rank = n()) %>% 
+                   arrange(desc(boystotal_Rank))
+
+
+top15boybaby_rank <- boy_babynames_R[1:15, ]
+
+plot5 <- ggplot(top15boybaby_rank, aes(x= Name, y= boystotal_Rank)) +
+         geom_segment( aes(x=reorder(Name,boystotal_Rank), xend=Name, y=0, yend= boystotal_Rank), color="#4c84d0") +
+         geom_point( color="#1961c2", size=4, alpha=0.6) +
+         xlab("\nBaby Boy Names \n") +
+         ylab("\nCount Of Boy Baby Rank") +
+         theme_light() +
+         coord_flip() +
+         theme(
+          panel.grid.major.y = element_blank(),
+          panel.border = element_blank(),
+          axis.ticks.y = element_blank()
+         )+
+        theme_bw()
+
+
+boy_babynames_B <- babynames %>%
+                   group_by(Name) %>% 
+                   summarise(boystotal_Birth = sum(Birth)) %>%
+                   arrange(desc(boystotal_Birth))
+
+top15boybaby_birth <- boy_babynames_B[1:15, ]
+
+plot6 <- ggplot(top15boybaby_birth, aes(x= Name, y= boystotal_Birth)) +
+         geom_segment( aes(x=reorder(Name,boystotal_Birth), xend=Name, y=0, yend= boystotal_Birth), color="#4c84d0") +
+         geom_point( color="#1961c2", size=4, alpha=0.6) +
+         xlab("\nBaby Boy Names \n") +
+         ylab("\nCount Of Boy Baby Births") +
+         theme_light() +
+         coord_flip() +
+         theme(
+           panel.grid.major.y = element_blank(),
+           panel.border = element_blank(),
+           axis.ticks.y = element_blank()
+         )+
+        theme_bw()
+
+
+subplot(plot5, plot6 ,nrows = 1, margin = 0.10,titleY = TRUE,titleX = TRUE)
+```
+
+
+__Trend of James and Michael over Years by their rank and births__
+
+>We have used top names to James and Michael (respective to number of births and ranks) over the years.We could see the trend of James and Michae is increasing according to number of births while James is nearly constant  and Michael is again decresing over years accoriding to rank.
+
+```{r message=FALSE, warning=FALSE}
+
+boybabynames_J_M <- babynames %>%
+                    filter(Name == "James" | Name == "Michael") %>%
+                    group_by(Name, Year) %>% 
+                    summarise(boystotal_Birth_J_M = sum(Birth)) %>%
+                    arrange(desc(boystotal_Birth_J_M))
+
+boybabynames_J_M_rank <- babynames %>%
+                         filter(Name == "James" | Name == "Michael") %>%
+                         arrange(Rank)
+
+
+plot77 <- plot_ly(boybabynames_J_M, x = ~Year, y = ~boystotal_Birth_J_M, mode = 'markers', color = ~Name) %>% 
+          layout(yaxis = list(title = "Count Of Births")) %>% add_trace(colors = "BuGn", type = "scatter")
+
+plot88 <- plot_ly(boybabynames_J_M_rank, x = ~Year, y = ~Rank, color = ~Name, mode = 'markers') %>% 
+          layout(yaxis = list(title = "Name Ranking by Year")) %>% add_trace(colors = "Reds", type = "scatter")
+
+subplot(plot77, plot88, margin = 0.1, nrows = 2, titleY = TRUE)
+```
+
+
+
+
+###### __Trend of Baby Names__
+
+__Trend of common name used for both boy and girl baby__
+
+>ROBIN is the most common name used among babies of both genders. The below trend is the evident that the use of robin for girl babies has increased over time. Where as it has declined for boby babies
+
+```{r}
+bigender_babynames <- babynames %>%
+                      group_by(Name) %>%
+                      summarise(names_total = n()) %>%
+                      arrange(desc(names_total))
+  
+bigender_topbabynames <- babynames %>%
+                         filter(Name == "Robin")
+
+colorPallete <- c("#ff008f", "#1961c2")
+
+plot9 <- ggplot(data = bigender_topbabynames, aes(x = Year, y= Birth, colour = Gender, group = Gender)) + 
+         geom_line()  + 
+         theme(legend.position = "right") +
+         ggtitle("Baby name Robin in Ireland over time") + 
+         theme_bw()
+
+ggplotly(plot9)
+
+```
+
+
+
+__Examine the trend in the number of names that are unique over time__
+
+>The number of unique names given to babies appears to be Increasing.Perhaps we only use fewer names which are common?
+
+```{r}
+unique_babynames <- babynames %>%
+                    group_by(Year) %>%
+                    distinct(Name) %>%
+                    summarise(total_unique_babynames = n()) %>%
+                    arrange(desc(total_unique_babynames))
+
+plot10 <- ggplot(unique_babynames, aes(x = Year,y = total_unique_babynames)) + 
+          geom_line(alpha = 0.4) + 
+          xlab("\nYear") +
+          ylab("\nCount of Unique Names\n") +
+          theme_bw()+
+          theme_linedraw()+
+          theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+          ggtitle(label=" Trend of unique names over time") + 
+          geom_smooth(method="loess")+
+          theme_bw()
+ggplotly(plot10)
+```
+
+
+
+__Popular Baby Names By Letter__
+
+>Due to popular baby names such as Adam, Ava, Aoife, Aarom and Alan from the dataset, the letter A takes first place. The second place of first letter baby name is C with names such as Conor, Chloe and Catherine.
+
+```{r}
+babyletters<-str_sub(babynames$Name,1,1)
+babynamesdf<-as.data.frame(table(babyletters))
+babynamestartltr <- babynamesdf[-1,]
+
+plo11 <- ggplot(babynamestartltr ,aes(x=babyletters,y=Freq))+
+         geom_segment( aes(x=babyletters, xend=babyletters, y=0, yend=Freq) , size=1, color="#4c84d0", linetype="dotdash" ) +
+         geom_point(size=0.7, color="#f46093", fill=alpha("#f46093", 0.2), alpha=0.9, shape=18, stroke=2)+
+         labs(x="Starting Letters of Baby Names",y="Count")
+
+ggplotly(plo11)
+
+```
+
+
+## __Summary__
+
+>In the Data Exploration section the mean was suprising low compared to number of births per year and the girls names are more spread than the boys.The analysis of baby names in Irealnd from 1964-2018 tell us that there is an increase in the number of unique names over the years.Also, the names which were popular in 1964 have declined in follwing yeras with respect to rank ( example : baby name MARY).
